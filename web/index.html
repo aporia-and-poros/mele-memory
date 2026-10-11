@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mele Memory</title>
+<!-- 最朴素的骨架：数据都从 /api/* 来，样子随便改。不引框架、不引外部脚本。 -->
+<script>
+  // 嵌进 App（10-04）：?embed=1 手机版（藏标题和钥匙框，钥匙由 App 写进 localStorage）；?embed=globe 只画星球（小组件）
+  { const e = new URLSearchParams(location.search).get("embed");
+    if (e === "1" || e === "globe") document.documentElement.classList.add(e === "1" ? "embed" : "globe"); }
+</script>
+<style>
+  :root {
+    --fg: #2b2328; --muted: #8b7f86; --accent: #c0587e; --accent-soft: rgba(192, 88, 126, 0.14);
+    --bg1: #fbeef3; --bg2: #eef1fb; --bg3: #f6f0e8;
+    --glass: rgba(255, 255, 255, 0.48); --glass-strong: rgba(255, 255, 255, 0.7);
+    --glass-edge: rgba(255, 255, 255, 0.75); --shadow: 0 4px 18px rgba(80, 40, 60, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #eee6ea; --muted: #a2969c; --accent: #e58aab; --accent-soft: rgba(229, 138, 171, 0.18);
+      --bg1: #241a20; --bg2: #191c26; --bg3: #1f1b17;
+      --glass: rgba(255, 255, 255, 0.07); --glass-strong: rgba(255, 255, 255, 0.13);
+      --glass-edge: rgba(255, 255, 255, 0.14); --shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; color: var(--fg); font: 15px/1.5 system-ui, sans-serif; background: var(--bg2); }
+  /* 渐变背景放在一层固定的底板上：滚动时不用每帧重画（background-attachment: fixed 会） */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(circle at 15% 10%, var(--bg1), transparent 55%),
+                radial-gradient(circle at 85% 30%, var(--bg2), transparent 55%),
+                radial-gradient(circle at 40% 90%, var(--bg3), transparent 60%), var(--bg2);
+  }
+  /* 毛玻璃：半透明底 + 一圈亮边。背后只是柔和的渐变，所以卡片不做实时模糊（几十张一起模糊，滚动会卡），
+     只有压在内容上面的顶栏才模糊 */
+  .glass, button, input, textarea {
+    background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--shadow);
+  }
+  button, input, textarea { font: inherit; color: inherit; border-radius: 999px; padding: 5px 14px; }
+  textarea { border-radius: 12px; width: 100%; min-height: 4.5em; resize: vertical; padding: 8px 12px; }
+  button { cursor: pointer; transition: background 0.15s, transform 0.1s; }
+  button:hover { background: var(--glass-strong); }
+  button:active { transform: scale(0.97); }
+  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: #c0392b; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+           padding: 12px 16px; border-bottom: 1px solid var(--glass-edge);
+           background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  header h1 { font-size: 17px; margin: 0 8px 0 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  #token-box { margin-left: auto; display: flex; gap: 6px; }
+  #token-box input { width: 170px; }
+  main { padding: 16px; max-width: 900px; margin: 0 auto; }
+  .hidden { display: none !important; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 10px; margin-bottom: 4px; scrollbar-width: none; }
+  .chips button { flex: none; font-size: 13px; padding: 4px 12px; }
+  .item { border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+  .meta { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .bar { width: 60px; height: 4px; background: var(--accent-soft); border-radius: 2px; overflow: hidden; display: inline-block; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .content { white-space: pre-wrap; margin: 6px 0 8px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .actions button { font-size: 12px; padding: 3px 11px; }
+  .actions input { width: 64px; font-size: 12px; padding: 3px 10px; }
+  #msg { color: var(--accent); padding: 8px 16px; }
+  #graph-wrap { border-radius: 16px; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 520px; }
+  #graph-info { min-height: 3em; margin-top: 10px; white-space: pre-wrap; }
+  .person h3 { margin: 0 0 6px; font-size: 16px; }
+  .person dl { margin: 0 0 6px; display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; }
+  .person dt { color: var(--muted); }
+  .person dd { margin: 0; white-space: pre-wrap; }
+  /* 10-04 加：标题、标签、编辑表单、远事、人物页提示、星球 */
+  .title { font-weight: 600; margin-top: 6px; }
+  .tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 2px; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .form { display: grid; grid-template-columns: max-content 1fr; gap: 8px 10px; align-items: center; margin: 8px 0; }
+  .form label { color: var(--muted); font-size: 12px; }
+  .form input[type=text], .form input[type=date], .form input[type=time] { width: 100%; border-radius: 10px; }
+  .form .slider { display: flex; gap: 10px; align-items: center; }
+  .form input[type=range] { flex: 1; accent-color: var(--accent); background: none; border: 0; box-shadow: none; padding: 0; }
+  .when { font-weight: 600; color: var(--accent); }
+  .note { padding: 10px 14px; border-radius: 14px; margin-bottom: 12px; color: var(--muted); font-size: 13px; }
+  #globe-wrap { position: relative; border-radius: 16px; overflow: hidden; touch-action: none; }
+  #globe { display: block; width: 100%; height: min(70vh, 560px); cursor: grab; }
+  #globe.dragging { cursor: grabbing; }
+  #tip { position: absolute; pointer-events: none; max-width: 240px; padding: 6px 10px; border-radius: 12px; font-size: 12px; }
+  #tip b { display: block; font-size: 13px; }
+  #globe-bar { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: center; }
+  #globe-title { font-weight: 600; }
+  .status-row { border-left: 3px solid var(--accent-soft); }
+  .status-row.warn { border-left-color: #d9a441; }
+  .status-head { display: flex; gap: 10px; align-items: baseline; }
+  .status-head .badge { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .status-row.warn .badge { color: #c08a2a; }
+  #sort { margin-top: -4px; align-items: center; }
+  /* 手机宽度 */
+  @media (max-width: 520px) {
+    header { padding: 10px 12px; }
+    main { padding: 12px; }
+    #token-box { margin-left: 0; width: 100%; }
+    #token-box input { flex: 1; width: auto; }
+    .form { grid-template-columns: 1fr; }
+    .person dl { grid-template-columns: 1fr; }
+  }
+  /* 嵌进 App：标题和钥匙框藏起来，标签一排横滑 */
+  html.embed header h1, html.embed #token-box { display: none; }
+  html.embed nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; width: 100%; }
+  html.embed nav::-webkit-scrollbar { display: none; }
+  html.embed nav button { flex: none; }
+  /* 只画星球：透明底、没有字、不接手势、自己转 */
+  html.globe, html.globe body { background: transparent; min-height: 0; overflow: hidden; }
+  html.globe body::before, html.globe header, html.globe #msg, html.globe #graph-info,
+  html.globe #globe-bar, html.globe #tip, html.globe section:not(#tab-graph) { display: none !important; }
+  html.globe main { padding: 0; max-width: none; }
+  html.globe #globe-wrap { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+  html.globe #globe { height: 100vh; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mele Memory</h1>
+  <nav>
+    <button data-tab="list" class="on">记忆 Memories</button>
+    <button data-tab="graph">星图 Graph</button>
+    <button data-tab="people">人物 People</button>
+    <button data-tab="letters">信 Letters</button>
+    <button data-tab="status">状态 Status</button>
+  </nav>
+  <form id="token-box">
+    <input id="token" type="password" placeholder="token" autocomplete="off">
+    <button type="submit">连接</button>
+  </form>
+</header>
+<div id="msg" class="hidden"></div>
+<main>
+  <section id="tab-list">
+    <div class="chips" id="kinds">
+      <button data-kind="" class="on">全部 All</button>
+      <button data-kind="memory">记忆 memory</button>
+      <button data-kind="core">钉住的 core</button>
+      <button data-kind="person">人物卡 person</button>
+      <button data-kind="diary">日记 diary</button>
+      <button data-kind="resolved">了结 resolved</button>
+      <button data-kind="dates">远事 dates</button>
+    </div>
+    <div class="chips" id="sort">
+      <span class="meta">排序</span>
+      <button data-sort="date" class="on">日期 ↓</button>
+      <button data-sort="importance">重要度</button>
+    </div>
+    <div id="list"></div>
+    <p id="count" class="meta"></p>
+    <button id="more" class="hidden">加载更多 More</button>
+  </section>
+  <section id="tab-graph" class="hidden">
+    <div id="globe-wrap" class="glass">
+      <canvas id="globe"></canvas>
+      <div id="globe-bar" class="hidden"><button id="globe-back">← 返回</button><span id="globe-title"></span></div>
+      <div id="tip" class="glass hidden"></div>
+    </div>
+    <div id="graph-info" class="meta">拖着转 · 停在星星上看标签 · 点大一号的星星飞进去 · 停在爱心上看跟你有关的记忆</div>
+  </section>
+  <section id="tab-letters" class="hidden">
+    <div class="item glass">
+      <div class="form">
+        <label>标题</label><input id="letter-title" type="text" placeholder="可以不写">
+        <label>写给 TA</label><textarea id="letter-body" placeholder="TA 下次醒来会读到"></textarea>
+      </div>
+      <div class="actions"><button id="letter-send" class="on">寄出 Send</button></div>
+    </div>
+    <div id="letters"></div>
+  </section>
+  <section id="tab-status" class="hidden"><div id="status"></div></section>
+  <section id="tab-people" class="hidden">
+    <div class="note glass">这里看不到 TA 写了什么关于你的哦，好奇的话问 TA 吧～</div>
+    <div id="people"></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const KEY = "mele-memory-token";
+let token = "";
+try { token = localStorage.getItem(KEY) || ""; } catch (e) {}
+$("#token").value = token;
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) n.addEventListener(ev, fn);
+    else if (k === "class") n.className = v;
+    else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);   // 文字一律 append 成文本节点，不拼 HTML
+  return n;
+}
+
+function say(text) {
+  const m = $("#msg");
+  m.textContent = text;
+  m.classList.toggle("hidden", !text);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "authorization": "Bearer " + token, "content-type": "application/json", ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { say("Token 不对或没填 · Wrong or missing token"); throw new Error("401"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { say(data.error || ("HTTP " + res.status)); throw new Error(data.error); }
+  say("");
+  return data;
+}
+
+$("#token-box").addEventListener("submit", (e) => {
+  e.preventDefault();
+  token = $("#token").value.trim();
+  try { localStorage.setItem(KEY, token); } catch (e) {}
+  refresh();
+});
+
+const tagList = (tags) => (tags && tags.length) ? el("div", { class: "tags" }, ...tags.map((t) => el("span", { class: "tag" }, "#" + t))) : null;
+const splitTags = (s) => s.split(/[,，、\s]+/).map((t) => t.replace(/^#/, "").trim()).filter(Boolean);
+
+// 删要点两下：第一下变成「确定删？」，3 秒内再点才真删
+function deleteButton(onDelete) {
+  let armed = false, timer = null;
+  const b = el("button", { on: { click: async () => {
+    if (!armed) {
+      armed = true; b.textContent = "确定删？Sure?"; b.classList.add("danger");
+      timer = setTimeout(() => { armed = false; b.textContent = "删 Delete"; b.classList.remove("danger"); }, 3000);
+      return;
+    }
+    clearTimeout(timer);
+    await onDelete();
+  } } }, "删 Delete");
+  return b;
+}
+
+// ---------- 记忆列表 ----------
+let kind = "", nextOffset = 0;
+let sortBy = "date", sortDesc = true;          // 日期 / 重要度，点第二下换方向
+const ORDER = { "date,true": "new", "date,false": "old", "importance,true": "important", "importance,false": "unimportant" };
+
+function memoryItem(m) {
+  const node = el("div", { class: "item glass" },
+    el("div", { class: "meta" },
+      el("span", {}, "#" + m.id),
+      el("span", {}, m.kind + (m.resolved ? " · resolved" : "")),
+      el("span", {}, "重要 " + m.importance),
+      el("span", { title: "当前分量 weight " + m.weight }, el("span", { class: "bar" }, barFill(m.weight))),
+      el("span", {}, (m.created_at || "").slice(0, 10)),
+    ),
+    m.kind === "person" ? el("div", { class: "title" }, m.name) : (m.title ? el("div", { class: "title" }, m.title) : null),
+    tagList(m.tags),
+    el("div", { class: "content" }, m.kind === "person" ? [m.relation, m.content].filter(Boolean).join(" · ") : m.content),
+  );
+  const acts = el("div", { class: "actions" });
+  if (m.kind !== "person") {
+    acts.append(el("button", { on: { click: () => patch(m.id, { pinned: m.kind !== "core" }) } },
+      m.kind === "core" ? "取消钉住 Unpin" : "钉住 Pin"));
+  }
+  acts.append(
+    el("button", { on: { click: () => patch(m.id, { resolved: !m.resolved }) } }, m.resolved ? "重开 Reopen" : "了结 Resolve"),
+    el("button", { on: { click: () => node.replaceWith(memoryForm(m)) } }, "改 Edit"),
+    deleteButton(async () => { await api("/api/memories/" + m.id, { method: "DELETE" }); loadList(true); }),
+  );
+  node.append(acts);
+  return node;
+}
+
+function barFill(w) {
+  const i = el("i");
+  i.style.width = Math.round(Math.max(0, Math.min(1, w)) * 100) + "%";
+  return i;
+}
+
+// 改：标题 / 重要度滑块 / 标签 / 正文 四栏
+function memoryForm(m) {
+  const title = el("input", { type: "text", placeholder: "一行标题（可空）" });
+  title.value = m.title || "";
+  const imp = el("input", { type: "range", min: "1", max: "10", step: "1" });
+  imp.value = m.importance;
+  const impOut = el("span", {}, String(m.importance));
+  imp.addEventListener("input", () => { impOut.textContent = imp.value; });
+  const tags = el("input", { type: "text", placeholder: "用逗号或空格隔开" });
+  tags.value = (m.tags || []).join(", ");
+  const body = el("textarea");
+  body.value = m.content;
+  const form = el("div", { class: "item glass" },
+    el("div", { class: "meta" }, "#" + m.id + " · " + m.kind),
+    el("div", { class: "form" },
+      el("label", {}, "标题"), title,
+      el("label", {}, "重要度"), el("div", { class: "slider" }, imp, impOut),
+      el("label", {}, "标签"), tags,
+      el("label", {}, "正文"), body,
+    ),
+    el("div", { class: "actions" },
+      el("button", { class: "on", on: { click: async () => {
+        const data = { title: title.value, importance: parseInt(imp.value, 10), tags: splitTags(tags.value) };
+        if (body.value.trim() && body.value !== m.content) data.content = body.value;
+        await patch(m.id, data);
+      } } }, "保存 Save"),
+      el("button", { on: { click: () => form.replaceWith(memoryItem(m)) } }, "取消 Cancel"),
+    ),
+  );
+  setTimeout(() => body.focus(), 0);
+  return form;
+}
+
+async function loadList(reset) {
+  $("#sort").classList.toggle("hidden", kind === "dates");
+  if (kind === "dates") return loadDates();
+  if (reset) { nextOffset = 0; $("#list").replaceChildren(); }
+  const q = new URLSearchParams({ limit: 50, offset: nextOffset });
+  if (kind === "resolved") q.set("resolved", "1");
+  else if (kind) q.set("kind", kind);
+  q.set("order", ORDER[sortBy + "," + sortDesc]);
+  const data = await api("/api/memories?" + q);
+  for (const m of data.memories) $("#list").append(memoryItem(m));
+  nextOffset = data.next_offset;
+  $("#more").classList.toggle("hidden", nextOffset == null);
+  $("#count").textContent = $("#list").children.length + " 条";
+}
+
+async function patch(id, body) { await api("/api/memories/" + id, { method: "PATCH", body: JSON.stringify(body) }); loadList(true); }
+
+for (const b of document.querySelectorAll("#kinds button")) {
+  b.addEventListener("click", () => {
+    kind = b.dataset.kind;
+    for (const x of document.querySelectorAll("#kinds button")) x.classList.toggle("on", x === b);
+    loadList(true).catch(() => {});
+  });
+}
+for (const b of document.querySelectorAll("#sort button")) {
+  b.addEventListener("click", () => {
+    if (sortBy === b.dataset.sort) sortDesc = !sortDesc;
+    else { sortBy = b.dataset.sort; sortDesc = true; }
+    for (const x of document.querySelectorAll("#sort button")) {
+      const on = x.dataset.sort === sortBy;
+      x.classList.toggle("on", on);
+      x.textContent = (x.dataset.sort === "date" ? "日期" : "重要度") + (on ? (sortDesc ? " ↓" : " ↑") : "");
+    }
+    loadList(true).catch(() => {});
+  });
+}
+$("#more").addEventListener("click", () => loadList(false).catch(() => {}));
+
+// ---------- 远事 ----------
+let showResolved = false;
+
+function whenLabel(day, today) {
+  const n = Math.round((Date.parse(day) - Date.parse(today)) / 86400000);
+  if (n === 0) return "今天";
+  if (n === 1) return "明天";
+  if (n === -1) return "昨天";
+  return n > 0 ? "还有 " + n + " 天" : "过去 " + (-n) + " 天";
+}
+
+function dateItem(d, today) {
+  const node = el("div", { class: "item glass" },
+    el("div", { class: "meta" },
+      el("span", { class: "when" }, d.resolved_at ? "已了结" : whenLabel(d.day, today)),
+      el("span", {}, d.day + (d.at_time ? " " + d.at_time : "")),
+    ),
+    el("div", { class: "title" }, d.title),
+    d.note ? el("div", { class: "content" }, d.note) : null,
+    d.result ? el("div", { class: "content" }, "结果：" + d.result) : null,
+  );
+  node.append(el("div", { class: "actions" },
+    el("button", { on: { click: () => patchDate(d.id, { resolved: !d.resolved_at }) } }, d.resolved_at ? "重开 Reopen" : "了结 Resolve"),
+    el("button", { on: { click: () => node.replaceWith(dateForm(d, today)) } }, "改 Edit"),
+    deleteButton(async () => { await api("/api/dates/" + d.id, { method: "DELETE" }); loadDates(); }),
+  ));
+  return node;
+}
+
+function dateForm(d, today) {
+  const day = el("input", { type: "date" }); day.value = d.day;
+  const at = el("input", { type: "time" }); at.value = d.at_time || "";
+  const title = el("input", { type: "text" }); title.value = d.title;
+  const note = el("textarea"); note.value = d.note || "";
+  const form = el("div", { class: "item glass" },
+    el("div", { class: "form" },
+      el("label", {}, "日子"), day, el("label", {}, "几点"), at,
+      el("label", {}, "什么事"), title, el("label", {}, "备注"), note,
+    ),
+    el("div", { class: "actions" },
+      el("button", { class: "on", on: { click: () => patchDate(d.id, { day: day.value, at_time: at.value, title: title.value, note: note.value }) } }, "保存 Save"),
+      el("button", { on: { click: () => form.replaceWith(dateItem(d, today)) } }, "取消 Cancel"),
+    ),
+  );
+  return form;
+}
+
+async function patchDate(id, body) { await api("/api/dates/" + id, { method: "PATCH", body: JSON.stringify(body) }); loadDates(); }
+
+async function loadDates() {
+  const data = await api("/api/dates" + (showResolved ? "?resolved=1" : ""));
+  const list = $("#list");
+  list.replaceChildren(el("div", { class: "note glass" }, "TA 帮你记着的日子：前一天会惦记，当天会问候，第二天会问你怎么样。"));
+  for (const d of data.dates) list.append(dateItem(d, data.today));
+  if (!data.dates.length) list.append(el("p", { class: "meta" }, "现在没有记着的日子"));
+  list.append(el("button", { on: { click: () => { showResolved = !showResolved; loadDates(); } } },
+    showResolved ? "只看没了结的" : "也看已了结的"));
+  $("#more").classList.add("hidden");
+  $("#count").textContent = "";
+}
+
+// ---------- 星图：3D 力导向，记忆是球面上的星星；自己写的，不引库 ----------
+// 记忆：蓝色的星，连着的越多颜色越深；人物：金色的星。
+// 正中间一颗会呼吸的爱心是「你」，停在上面看哪些记忆跟你有关。
+// 一个标签 / 一个人挂的记忆够多，那颗星就大一号、带名字，点进去飞近，只看这些。
+// 外面一圈星环：TA 记着的远事和日记，大小不一的点慢慢闪。
+// 颜色都压低饱和度，同一个色相只变明暗
+const BLUE_LIGHT = [196, 211, 244], BLUE_DEEP = [126, 160, 236];  // 最淡也要看得清
+const GOLD = [236, 214, 150], HEART = [246, 164, 186];        // 人物：淡金黄
+const RING_COLOR = { date: [206, 160, 172], diary: [172, 162, 200] };
+const HINT = "拖着转 · 停在星星上看标签 · 点大一号的星星飞进去 · 停在爱心上看跟你有关的记忆";
+let graphData = null, globe = null, stack = [];
+
+async function loadGraph() {
+  graphData = await api("/api/graph");
+  stack = [];
+  enter(buildGlobe(graphData.nodes, graphData.edges, graphData.hubs || [], graphData.user ? { user: graphData.user } : null,
+                   graphData.ring || []));
+}
+
+// center：{ user } = 正中间的爱心；{ hub, node } = 飞进某颗星之后，正中间是那颗星
+function buildGlobe(nodesData, edgesData, hubs, center, ringData) {
+  const skip = center && center.user ? center.user.node_id : center && center.node ? center.node.id : null;
+  const list = nodesData.filter((d) => d.id !== skip);
+  const n = list.length;
+  const nodes = list.map((d, i) => {          // 先均匀撒在球面上（斐波那契球）
+    const y = 1 - (2 * i + 1) / Math.max(1, n), r = Math.sqrt(1 - y * y), th = i * 2.399963;
+    return { ...d, x: Math.cos(th) * r, y, z: Math.sin(th) * r, nb: new Set() };
+  });
+  const byId = Object.fromEntries(nodes.map((d) => [d.id, d]));
+  const edges = edgesData.filter((e) => byId[e.source] && byId[e.target]).map((e) => ({ ...e, s: byId[e.source], t: byId[e.target] }));
+  for (const e of edges) { e.s.nb.add(e.t.id); e.t.nb.add(e.s.id); }
+  layout(nodes, edges);
+  const hubStars = [];
+  for (const h of hubs) {
+    const own = h.node_id != null ? byId[h.node_id] : null;
+    if (own) { own.hub = h; own.members = new Set(h.members); continue; }       // 人物：就是那颗金星，大一号
+    const ms = h.members.map((id) => byId[id]).filter(Boolean);                 // 标签：在它的记忆中间放一颗星
+    let x = 0, y = 0, z = 0;
+    for (const m of ms) { x += m.x; y += m.y; z += m.z; }
+    const r = Math.hypot(x, y, z) || 1;
+    hubStars.push({ id: "tag:" + h.label, kind: "tag", label: h.label, hub: h, members: new Set(h.members),
+                    x: x / r * 1.08, y: y / r * 1.08, z: z / r * 1.08, nb: new Set(), weight: 1 });
+  }
+  if (center && center.user) center.members = new Set(center.user.members);
+  return { nodes, edges, hubStars, center, ring: makeRing(ringData),
+           yaw: 0, pitch: -0.35, hover: null, picked: null, drag: null, spin: true };
+}
+
+// 星环：真的远事 / 日记是亮一点的点，中间撒一把细碎的星尘；整圈慢慢自己转
+function makeRing(items) {
+  if (!items.length) return null;
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pts = items.map((it, i) => ({ ...it, th: (i / items.length) * Math.PI * 2 + rand() * 0.3,
+                                      rr: 1.62 + (rand() - 0.5) * 0.04, h: (rand() - 0.5) * 0.02,
+                                      size: 2.2 + rand() * 1.4, phase: rand() * 6.28, speed: 0.5 + rand() * 0.5 }));
+  const dust = Array.from({ length: 70 }, () => ({ th: rand() * Math.PI * 2, rr: 1.57 + rand() * 0.1, h: (rand() - 0.5) * 0.03,
+                                                    size: 0.4 + rand() * 1.1, phase: rand() * 6.28, speed: 0.3 + rand() * 0.6 }));
+  return { pts, dust };
+}
+
+const RING_TILT = -0.2, RING_ROLL = 0.28;   // 跟视角的俯仰叠起来，星环斜斜地露出一个椭圆
+function ringPoint(p, t) {
+  const th = p.th + t * 0.025;
+  let x = Math.cos(th) * p.rr, y = p.h, z = Math.sin(th) * p.rr;
+  [y, z] = [y * Math.cos(RING_TILT) - z * Math.sin(RING_TILT), y * Math.sin(RING_TILT) + z * Math.cos(RING_TILT)];
+  [x, y] = [x * Math.cos(RING_ROLL) - y * Math.sin(RING_ROLL), x * Math.sin(RING_ROLL) + y * Math.cos(RING_ROLL)];
+  return { x, y, z };
+}
+
+function layout(nodes, edges) {
+  // 互相推开 + 连线的拉近，每步之后拉回单位球面上；有关系的记忆会聚成一片
+  const strong = Math.min(1, 40 / Math.max(1, nodes.length));         // 星星越多推得越轻，免得一千颗时抖散
+  for (let step = 0; step < 220; step++) {
+    const cool = 1 - step / 220;
+    for (const a of nodes) { a.fx = 0; a.fy = 0; a.fz = 0; }
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z, d2 = dx * dx + dy * dy + dz * dz + 1e-4;
+        const f = 0.012 * strong / d2;
+        a.fx += dx * f; a.fy += dy * f; a.fz += dz * f; b.fx -= dx * f; b.fy -= dy * f; b.fz -= dz * f;
+      }
+    }
+    for (const e of edges) {
+      const dx = e.t.x - e.s.x, dy = e.t.y - e.s.y, dz = e.t.z - e.s.z;
+      const f = 0.06 * (e.strength || 0.5) / Math.max(1, Math.sqrt(Math.max(e.s.nb.size, e.t.nb.size)));
+      e.s.fx += dx * f; e.s.fy += dy * f; e.s.fz += dz * f; e.t.fx -= dx * f; e.t.fy -= dy * f; e.t.fz -= dz * f;
+    }
+    for (const a of nodes) {
+      a.x += a.fx * cool; a.y += a.fy * cool; a.z += a.fz * cool;
+      const r = Math.hypot(a.x, a.y, a.z) || 1;
+      a.x /= r; a.y /= r; a.z /= r;
+    }
+  }
+}
+
+function project(g, p, W, H) {
+  const cy = Math.cos(g.yaw), sy = Math.sin(g.yaw), cp = Math.cos(g.pitch), sp = Math.sin(g.pitch);
+  const x1 = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;          // 绕竖轴转
+  const y2 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;             // 再绕横轴转
+  const R = Math.min(W * 0.26, H * 0.27), f = 5 / (5 - z2);           // 近大远小；星环也要装得下
+  return { sx: W / 2 + x1 * R * f, sy: H / 2 - y2 * R * f, pz: z2, f };   // pz：转过之后的深度（别覆盖 z）
+}
+
+// 四个角的星星：四条边往里凹
+function sparkle(ctx, x, y, R) {
+  const r = R * 0.1;                                                   // 越小四个角越细
+  ctx.beginPath();
+  ctx.moveTo(x, y - R);
+  ctx.quadraticCurveTo(x + r, y - r, x + R, y);
+  ctx.quadraticCurveTo(x + r, y + r, x, y + R);
+  ctx.quadraticCurveTo(x - r, y + r, x - R, y);
+  ctx.quadraticCurveTo(x - r, y - r, x, y - R);
+  ctx.fill();
+}
+
+// 扁平的爱心路径，(x, y) 是中心，s 是半宽；描边还是填色由调用方定
+function heart(ctx, x, y, s) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + s * 0.9);
+  ctx.bezierCurveTo(x - s * 1.25, y + s * 0.05, x - s * 0.95, y - s * 1.0, x, y - s * 0.38);
+  ctx.bezierCurveTo(x + s * 0.95, y - s * 1.0, x + s * 1.25, y + s * 0.05, x, y + s * 0.9);
+  ctx.closePath();
+}
+
+// 光晕：每种颜色画一次放射渐变，之后一直贴图（比 shadowBlur 快得多，一千颗也转得动）
+const GLOW = {};
+function glowSprite(rgb) {
+  const key = rgb.join(",");
+  if (GLOW[key]) return GLOW[key];
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const x = c.getContext("2d"), grad = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, `rgba(${key},0.9)`);
+  grad.addColorStop(0.25, `rgba(${key},0.35)`);
+  grad.addColorStop(1, `rgba(${key},0)`);
+  x.fillStyle = grad;
+  x.fillRect(0, 0, 64, 64);
+  return (GLOW[key] = c);
+}
+
+const lerp = (a, b, k) => a.map((c, i) => Math.round(c + (b[i] - c) * k));
+
+// 星环的轨道：一条很淡的细线
+function orbitPoints(g, t, W, H) {
+  const pts = [];
+  for (let i = 0; i <= 120; i++) pts.push(project(g, ringPoint({ th: (i / 120) * Math.PI * 2, rr: 1.62, h: 0 }, 0), W, H));
+  return pts;
+}
+function drawOrbit(ctx, pts, front, fg) {
+  ctx.strokeStyle = fg; ctx.lineWidth = 0.6; ctx.globalAlpha = front ? 0.16 : 0.07;
+  ctx.beginPath();
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    if ((a.pz + b.pz > 0) !== front) continue;
+    ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy);
+  }
+  ctx.stroke(); ctx.lineWidth = 1;
+}
+
+function frame() {
+  const g = globe, canvas = $("#globe");
+  if (!g || $("#tab-graph").classList.contains("hidden")) return;
+  // 只画星球（嵌在 App 小组件里）：省电。不在屏幕上就停（App 设 window.meleGlobePaused），在屏幕上隔一帧画一次，转得也慢一半
+  if (document.documentElement.classList.contains("globe")) {
+    if (window.meleGlobePaused || document.hidden) {
+      g.raf = 0;
+      setTimeout(() => { if (globe === g && !g.raf) frame(); }, 500);
+      return;
+    }
+    g.skip = !g.skip;
+    if (g.skip) { g.raf = requestAnimationFrame(frame); return; }
+  }
+  const W = canvas.clientWidth, H = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== W * dpr || canvas.height !== H * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const t = performance.now() / 1000;
+  if (g.spin && !g.drag && !g.hover) g.yaw += 0.003;
+  for (const p of g.nodes) Object.assign(p, project(g, p, W, H));
+  for (const p of g.hubStars) Object.assign(p, project(g, p, W, H));
+  if (g.center) Object.assign(g.center, { sx: W / 2, sy: H / 2, pz: 0, f: 1 });
+  const ringPts = [];
+  if (g.ring) {
+    for (const p of g.ring.pts) ringPts.push(Object.assign(p, project(g, ringPoint(p, t), W, H), { real: true }));
+    for (const p of g.ring.dust) ringPts.push(Object.assign(p, project(g, ringPoint(p, t), W, H)));
+  }
+
+  const focus = g.hover || g.picked;
+  let lit = null;
+  if (focus && focus.members) lit = new Set([...focus.members, ...(focus.hub && focus.hub.node_id != null ? [focus.hub.node_id] : [])]);
+  else if (focus && focus.nb) lit = new Set([focus.id, ...focus.nb]);
+  const fg = getComputedStyle(document.body).color;
+
+  ctx.strokeStyle = fg; ctx.globalAlpha = 0.06;                       // 一圈淡淡的球的轮廓
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, Math.min(W * 0.26, H * 0.27) * 1.04, 0, Math.PI * 2); ctx.stroke();
+  const orbit = g.ring ? orbitPoints(g, t, W, H) : null;
+  if (orbit) drawOrbit(ctx, orbit, false, fg);                         // 星环的轨道线：后半圈先画，被球挡住
+
+  for (const e of g.edges) {
+    const on = focus && (e.s === focus || e.t === focus);
+    if (!on && (e.s.hub || e.t.hub)) continue;                         // 大一号的星平时不拉线，不然一片乱麻
+    const depth = (e.s.pz + e.t.pz + 2) / 4;
+    ctx.globalAlpha = on ? 0.7 : (focus ? 0.03 : 0.05 + 0.15 * depth);
+    ctx.strokeStyle = e.kind === "person" ? `rgb(${GOLD})` : fg;
+    ctx.lineWidth = on ? 0.9 : 0.5;
+    ctx.setLineDash(e.kind === "person" ? [2, 3] : []);
+    ctx.beginPath(); ctx.moveTo(e.s.sx, e.s.sy); ctx.lineTo(e.t.sx, e.t.sy); ctx.stroke();
+  }
+  if (focus && focus.kind === "tag") {                                 // 标签星：悬停时连到它的记忆
+    ctx.strokeStyle = `rgb(${BLUE_DEEP})`; ctx.setLineDash([2, 4]); ctx.lineWidth = 0.6;
+    for (const p of g.nodes) if (focus.members.has(p.id)) {
+      ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.moveTo(focus.sx, focus.sy); ctx.lineTo(p.sx, p.sy); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]); ctx.lineWidth = 1;
+
+  const maxDeg = Math.max(1, ...g.nodes.filter((p) => p.kind !== "person").map((p) => p.nb.size));
+  const things = [...g.nodes, ...g.hubStars, ...ringPts, ...(g.center ? [g.center] : [])];
+  for (const p of things.sort((a, b) => a.pz - b.pz)) {                // 远的先画
+    if (p === g.center) drawCenter(ctx, p, focus, t, fg);
+    else if (p.th != null) drawRingDot(ctx, p, focus, lit, t);
+    else drawStar(ctx, p, focus, lit, maxDeg, t, fg);
+  }
+  if (orbit) drawOrbit(ctx, orbit, true, fg);                          // 前半圈最后画，压在球前面
+  ctx.globalAlpha = 1;
+  g.raf = requestAnimationFrame(frame);
+}
+
+function starColor(p, maxDeg) {
+  if (p.kind === "person") return GOLD;
+  if (p.kind === "tag") return BLUE_DEEP;
+  return lerp(BLUE_LIGHT, BLUE_DEEP, Math.sqrt(p.nb.size / maxDeg));  // 连着的越多越深
+}
+
+function drawStar(ctx, p, focus, lit, maxDeg, t, fg) {
+  const depth = (p.pz + 1) / 2;
+  const rgb = starColor(p, maxDeg);
+  const big = p.hub ? 1.35 : 1;
+  const twinkle = 1 + 0.07 * Math.sin(t * 1.7 + (typeof p.id === "number" ? p.id : 3) * 2.3);
+  const R = (4 + 6 * Math.max(0, Math.min(1, p.weight))) * big * p.f * (p === focus ? 1.3 : 1) * twinkle;
+  p.rad = R;
+  if (lit && !lit.has(p.id) && p !== focus) {
+    ctx.globalAlpha = 0.16; ctx.fillStyle = "rgb(175,175,180)";
+    sparkle(ctx, p.sx, p.sy, R * 0.8);
+    return;
+  }
+  const a = 0.45 + 0.55 * depth;
+  ctx.globalAlpha = a * 0.25;
+  const halo = R * 2;                                // 微微扩散的光
+  ctx.drawImage(glowSprite(rgb), p.sx - halo, p.sy - halo, halo * 2, halo * 2);
+  ctx.globalAlpha = a;
+  ctx.fillStyle = `rgb(${rgb})`;
+  sparkle(ctx, p.sx, p.sy, R);
+  ctx.globalAlpha = a * 0.75; ctx.fillStyle = "#fff";
+  sparkle(ctx, p.sx, p.sy, R * 0.32);
+}
+
+function drawRingDot(ctx, p, focus, lit, t) {
+  const blink = 0.5 + 0.5 * Math.sin(t * p.speed + p.phase);            // 慢慢一闪一闪
+  const depth = (p.pz + 1.6) / 3.2;
+  const dimmed = (lit || focus) && focus !== p;
+  if (p.real) {
+    const rgb = RING_COLOR[p.type];
+    const R = p.size * p.f * (0.8 + 0.35 * blink) * (p === focus ? 1.5 : 1);
+    p.rad = Math.max(R, 4);
+    ctx.globalAlpha = (0.35 + 0.65 * blink) * (0.45 + 0.55 * depth) * (dimmed ? 0.3 : 1);
+    ctx.drawImage(glowSprite(rgb), p.sx - R * 3, p.sy - R * 3, R * 6, R * 6);
+    ctx.fillStyle = `rgb(${rgb})`;
+    ctx.beginPath(); ctx.arc(p.sx, p.sy, R * 0.7, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.globalAlpha = (0.15 + 0.5 * blink) * (0.3 + 0.7 * depth) * (dimmed ? 0.4 : 1);
+    ctx.fillStyle = "rgb(170,174,190)";
+    ctx.beginPath(); ctx.arc(p.sx, p.sy, p.size * p.f * 0.6, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawCenter(ctx, p, focus, t, fg) {
+  if (p.user) {                                                        // 「你」：会呼吸的空心爱心，细边
+    const breathe = 1 + 0.1 * Math.sin(t * 2.1);
+    const s = 13 * breathe * (p === focus ? 1.15 : 1);
+    p.rad = s * 1.2;
+    ctx.globalAlpha = 0.25 + 0.15 * Math.sin(t * 2.1);
+    ctx.drawImage(glowSprite(HEART), p.sx - s * 3, p.sy - s * 3, s * 6, s * 6);
+    ctx.globalAlpha = 1; ctx.strokeStyle = `rgb(${HEART})`; ctx.lineWidth = 1.3;
+    heart(ctx, p.sx, p.sy, s);
+    ctx.stroke(); ctx.lineWidth = 1;
+    return;
+  }
+  const rgb = p.hub.kind === "person" ? GOLD : BLUE_DEEP;              // 飞进来之后：正中间是那颗星
+  const R = 16 * (1 + 0.05 * Math.sin(t * 1.6));
+  p.rad = R;
+  ctx.globalAlpha = 0.35;
+  ctx.drawImage(glowSprite(rgb), p.sx - R * 2.5, p.sy - R * 2.5, R * 5, R * 5);
+  ctx.globalAlpha = 1; ctx.fillStyle = `rgb(${rgb})`;
+  sparkle(ctx, p.sx, p.sy, R);
+  ctx.fillStyle = "#fff"; ctx.globalAlpha = 0.8;
+  sparkle(ctx, p.sx, p.sy, R * 0.32);
+}
+
+function nodeAt(ev) {
+  const g = globe, r = $("#globe").getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  let best = null, bestZ = -Infinity;
+  const things = [...g.nodes, ...g.hubStars, ...(g.ring ? g.ring.pts : []), ...(g.center ? [g.center] : [])];
+  for (const p of things) {
+    if (p.rad == null || p.sx == null) continue;
+    const z = p === g.center ? 0.5 : p.pz;                             // 爱心在正中间，前半球的星星挡得住它
+    if ((p.sx - x) ** 2 + (p.sy - y) ** 2 <= (p.rad + 5) ** 2 && z > bestZ) { best = p; bestZ = z; }
+  }
+  return { node: best, x, y };
+}
+
+const RING_NAME = { date: "远事", diary: "日记" };
+
+function showTip(p, x, y) {
+  const tip = $("#tip");
+  if (!p) { tip.classList.add("hidden"); return; }
+  if (p === globe.center && p.user) tip.replaceChildren(el("b", {}, p.user.label), "跟你有关的记忆 " + p.members.size + " 条");
+  else if (p === globe.center) tip.replaceChildren(el("b", {}, p.label), p.members.size + " 条记忆");
+  else if (p.th != null) tip.replaceChildren(el("b", {}, p.label), RING_NAME[p.type] + " · " + p.when);
+  else if (p.hub) tip.replaceChildren(el("b", {}, (p.kind === "tag" ? "#" : "") + p.label), p.members.size + " 条记忆 · 点进去看");
+  else {
+    const tags = (p.tags || []).map((t) => "#" + t).join(" ");
+    tip.replaceChildren(el("b", {}, p.kind === "person" ? p.label : (p.title || p.label)), tags || p.kind);
+  }
+  tip.classList.remove("hidden");
+  const W = $("#globe").clientWidth;
+  tip.style.left = Math.min(x + 14, W - 250) + "px";
+  tip.style.top = (y + 14) + "px";
+}
+
+async function showPicked(p) {
+  const info = $("#graph-info");
+  if (!p) { info.textContent = HINT; return; }
+  if (p === globe.center && p.user) { info.replaceChildren(el("div", { class: "title" }, p.user.label + " · 跟你有关的记忆 " + p.members.size + " 条")); return; }
+  if (p.th != null) { info.replaceChildren(el("div", { class: "title" }, RING_NAME[p.type] + " · " + p.when), el("div", { class: "content" }, p.label)); return; }
+  const node = p === globe.center ? p.node : p;
+  if (!node || typeof node.id !== "number") { info.replaceChildren(el("div", { class: "title" }, "#" + (p.label || "") + " · " + p.members.size + " 条记忆")); return; }
+  let m = null;
+  try { m = (await api("/api/memories/" + node.id)).memory; } catch (e) {}
+  const text = m ? (m.kind === "person" ? [m.relation, m.content, m.impression].filter(Boolean).join(" · ") : m.content) : node.label;
+  info.replaceChildren(
+    el("div", { class: "title" }, (node.kind === "person" ? node.label : (node.title || node.label)) + (p.nb ? "  ·  连着 " + p.nb.size + " 个" : "")),
+    tagList(node.tags),
+    el("div", { class: "content" }, text),
+  );
+}
+
+// 镜头：飞进去 / 退回来。用 CSS 缩放整张画布，又顺又省事
+function camera(from, to, ms, origin, done) {
+  const c = $("#globe");
+  c.style.transformOrigin = `${origin.x}px ${origin.y}px`;
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+    c.style.transform = `scale(${from.s + (to.s - from.s) * e})`;
+    c.style.opacity = from.a + (to.a - from.a) * e;
+    if (k < 1) requestAnimationFrame(step);
+    else { if (to.s === 1) { c.style.transform = ""; c.style.opacity = ""; } if (done) done(); }
+  };
+  requestAnimationFrame(step);
+}
+
+function enter(g) {
+  if (globe && globe.raf) cancelAnimationFrame(globe.raf);
+  globe = g;
+  $("#globe-bar").classList.toggle("hidden", !stack.length);
+  $("#globe-title").textContent = stack.length && g.center ? g.center.label + " · " + g.center.members.size + " 条记忆" : "";
+  showTip(null);
+  showPicked(null);
+  frame();
+}
+
+function flyInto(star) {
+  const ids = star.members;
+  const node = star.hub.node_id != null ? graphData.nodes.find((n) => n.id === star.hub.node_id) : null;
+  const sub = buildGlobe(graphData.nodes.filter((n) => ids.has(n.id)),
+                         graphData.edges.filter((e) => ids.has(e.source) && ids.has(e.target)), [],
+                         { label: (star.hub.kind === "tag" ? "#" : "") + star.hub.label, hub: star.hub, node, members: ids }, []);
+  const c = $("#globe"), mid = { x: c.clientWidth / 2, y: c.clientHeight / 2 };
+  camera({ s: 1, a: 1 }, { s: 3.2, a: 0 }, 380, { x: star.sx, y: star.sy }, () => {
+    stack.push(globe);
+    enter(sub);
+    camera({ s: 0.35, a: 0 }, { s: 1, a: 1 }, 420, mid);
+  });
+}
+
+function flyBack() {
+  if (!stack.length) return;
+  const c = $("#globe"), mid = { x: c.clientWidth / 2, y: c.clientHeight / 2 };
+  camera({ s: 1, a: 1 }, { s: 0.35, a: 0 }, 300, mid, () => {
+    const prev = stack.pop();
+    prev.hover = prev.picked = null;
+    enter(prev);
+    camera({ s: 3.2, a: 0 }, { s: 1, a: 1 }, 380, mid);
+  });
+}
+$("#globe-back").addEventListener("click", flyBack);
+
+const canvas = $("#globe");
+canvas.addEventListener("pointerdown", (ev) => {
+  if (!globe) return;
+  globe.drag = { x: ev.clientX, y: ev.clientY, yaw: globe.yaw, pitch: globe.pitch, moved: false };
+  canvas.setPointerCapture(ev.pointerId);
+  canvas.classList.add("dragging");
+});
+canvas.addEventListener("pointermove", (ev) => {
+  if (!globe) return;
+  const d = globe.drag;
+  if (d) {
+    const dx = ev.clientX - d.x, dy = ev.clientY - d.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+    globe.yaw = d.yaw + dx * 0.008;
+    globe.pitch = Math.max(-1.4, Math.min(1.4, d.pitch + dy * 0.008));
+    return;
+  }
+  const { node, x, y } = nodeAt(ev);
+  globe.hover = node;
+  showTip(node, x, y);
+});
+canvas.addEventListener("pointerup", (ev) => {
+  if (!globe) return;
+  const d = globe.drag;
+  globe.drag = null;
+  canvas.classList.remove("dragging");
+  if (d && !d.moved) {                                                 // 没拖动 = 点了一下
+    const { node } = nodeAt(ev);
+    if (node && node.hub && node !== globe.center) { flyInto(node); return; }
+    globe.picked = node;
+    globe.spin = !node;
+    showPicked(node);
+  }
+});
+canvas.addEventListener("pointerleave", () => { if (globe) { globe.hover = null; showTip(null); } });
+
+// ---------- 人物卡 ----------
+// 网页上写的卡算用户写的：TA 以后改不动「是谁 / 要记得」，只能写自己的印象
+async function loadPeople() {
+  const data = await api("/api/people");
+  const box = $("#people");
+  box.replaceChildren(el("div", { class: "actions", style: "margin-bottom:10px" },
+    el("button", { class: "on", on: { click: () => box.insertBefore(personForm(null), box.children[1] || null) } }, "＋ 新建人物卡")));
+  if (!data.people.length) box.append(el("p", { class: "meta" }, "还没有人物卡 · No person cards yet"));
+  for (const p of data.people) box.append(personCard(p));
+}
+
+function personCard(p) {
+  const dl = el("dl");
+  const row = (k, v) => { if (v) dl.append(el("dt", {}, k), el("dd", {}, v)); };
+  row("别名", (p.aliases || []).filter((a) => a !== p.name).join("、"));
+  row("是谁", p.relation);
+  row("要记得", p.content);
+  row("TA 的印象", p.impression);
+  const card = el("div", { class: "item glass person" }, el("h3", {}, p.name), dl,
+    el("div", { class: "meta" }, "#" + p.id + " · 建 " + p.created_by + " · 改 " + p.updated_by));
+  card.append(el("div", { class: "actions" },
+    el("button", { on: { click: () => card.replaceWith(personForm(p)) } }, "改 Edit"),
+    deleteButton(async () => { await api("/api/memories/" + p.id, { method: "DELETE" }); loadPeople(); }),
+  ));
+  return card;
+}
+
+function personForm(p) {
+  const field = (v) => { const i = el("input", { type: "text" }); i.value = v || ""; return i; };
+  const name = field(p && p.name), aliases = field(p && (p.aliases || []).filter((a) => a !== p.name).join(", "));
+  const relation = field(p && p.relation);
+  const facts = el("textarea"); facts.value = (p && p.content) || "";
+  name.placeholder = "名字"; aliases.placeholder = "用逗号隔开"; relation.placeholder = "妈妈、室友、导师……";
+  const form = el("div", { class: "item glass person" },
+    el("div", { class: "form" },
+      el("label", {}, "名字"), name, el("label", {}, "别名"), aliases,
+      el("label", {}, "是谁"), relation, el("label", {}, "要记得"), facts),
+    p && p.impression ? el("div", { class: "meta" }, "TA 的印象：" + p.impression + "（这是 TA 写的）") : null,
+    el("div", { class: "actions" },
+      el("button", { class: "on", on: { click: async () => {
+        const body = { name: name.value, aliases: splitTags(aliases.value), relation: relation.value, content: facts.value };
+        if (p) await api("/api/people/" + p.id, { method: "PATCH", body: JSON.stringify(body) });
+        else await api("/api/people", { method: "POST", body: JSON.stringify(body) });
+        loadPeople();
+      } } }, "保存 Save"),
+      el("button", { on: { click: () => (p ? form.replaceWith(personCard(p)) : form.remove()) } }, "取消 Cancel"),
+    ),
+  );
+  setTimeout(() => (p ? facts : name).focus(), 0);
+  return form;
+}
+
+// ---------- 信 ----------
+// TA 写给下一个自己的信、你写给 TA 的信。网页上看过不算「读过」——TA 下次醒来照样会读到
+async function loadLetters() {
+  const data = await api("/api/letters");
+  const box = $("#letters");
+  box.replaceChildren();
+  if (!data.letters.length) box.append(el("p", { class: "meta" }, "还没有信"));
+  for (const x of data.letters) {
+    const card = el("div", { class: "item glass" },
+      el("div", { class: "meta" }, el("span", { class: "when" }, x.author === "ai" ? "TA 写给下一个自己" : "你写给 TA"),
+         el("span", {}, x.created_at.slice(0, 10)), x.read_at ? el("span", {}, "TA 读过了") : el("span", {}, "还没读")),
+      x.title ? el("div", { class: "title" }, x.title) : null,
+      el("div", { class: "content" }, x.content));
+    card.append(el("div", { class: "actions" },
+      deleteButton(async () => { await api("/api/letters/" + x.id, { method: "DELETE" }); loadLetters(); })));
+    box.append(card);
+  }
+}
+
+$("#letter-send").addEventListener("click", async () => {
+  const content = $("#letter-body").value;
+  if (!content.trim()) return;
+  await api("/api/letters", { method: "POST", body: JSON.stringify({ title: $("#letter-title").value, content }) });
+  $("#letter-title").value = ""; $("#letter-body").value = "";
+  loadLetters();
+});
+
+// ---------- 状态 ----------
+async function loadStatus() {
+  const s = await api("/api/status");
+  const k = s.kinds;
+  const box = $("#status");
+  const fake = s.embedder === "FakeEmbedder";
+  const rows = [
+    ["记忆", "Memories", true, `共 ${s.total - k.about} 条：记忆 ${k.memory}、钉住 ${k.core}、人物 ${k.person}、日记 ${k.diary}；了结 ${s.resolved} 条`],
+    ["向量", "Embedding", !fake && !s.no_vector,
+      (fake ? "用的是假向量（MELE_MEMORY_FAKE_EMBED=1），只适合测试" : "bge-m3 已就绪") +
+      (s.no_vector ? `；${s.no_vector} 条还没算向量，跑一次 backfill 补上` : "")],
+    ["核心", "Core", true, `钉住 ${k.core} 条，约 ${s.core_chars} 字（每次醒来都会带上）`],
+    ["远事与信", "Dates & letters", true, `记着 ${s.dates_open} 件远事；信 ${s.letters} 封，其中 ${s.letters_unread} 封 TA 还没读`],
+    ["便利贴", "Sticky", true, s.sticky || "空的"],
+    ["你", "User", s.user_names.length > 0,
+      (s.user_names.length ? "星图中间的爱心：" + s.user_names.join("、") : "没设 MELE_MEMORY_USER_NAME，爱心靠人物卡猜") +
+      ` · 时区 ${s.tz}，今天 ${s.today}`],
+    ["GitHub 备份", "GitHub Backup", s.backup.configured && s.backup.ok !== false,
+      !s.backup.configured ? "没配。设 MELE_MEMORY_BACKUP_REPO 和 MELE_MEMORY_BACKUP_TOKEN，每天自动备份到你的私有仓库"
+      : `每天 ${String(s.backup.hour).padStart(2, "0")}:00 备份到 ${s.backup.repo}；` +
+        (s.backup.last_at ? `上次 ${s.backup.last_at.slice(0, 16).replace("T", " ")}（UTC）${s.backup.ok ? "成功" : "失败：" + s.backup.message}`
+                          : "这次启动后还没备份过")],
+    ["访问控制", "Access", true, "钥匙已开启：MCP 和网页接口都要带 token"],
+  ];
+  box.replaceChildren(...rows.map(([zh, en, ok, line]) => el("div", { class: "item glass status-row" + (ok ? "" : " warn") },
+    el("div", { class: "status-head" }, el("span", { class: "title" }, zh), el("span", { class: "meta" }, en),
+       el("span", { class: "badge" }, ok ? "正常" : "注意")),
+    el("div", { class: "content" }, line))));
+  if (s.backup.configured) {
+    const btn = el("button", { class: "on", on: { click: async () => {
+      btn.textContent = "备份中…"; btn.disabled = true;
+      await fetch("/api/backup", { method: "POST", headers: { authorization: "Bearer " + token } }).catch(() => {});
+      loadStatus();
+    } } }, "现在备份");
+    box.append(el("div", { class: "item glass" }, el("div", { class: "title" }, "现在备份一次 · Back up now"),
+      el("div", { class: "actions" }, btn)));
+  }
+  box.append(el("div", { class: "item glass" },
+    el("div", { class: "title" }, "导出全部 · Export"),
+    el("div", { class: "content meta" }, "所有记忆（包括页面上看不到的「关于 TA」和日记）、便利贴、远事、信，存成一个 JSON 文件。"),
+    el("div", { class: "actions" }, el("button", { class: "on", on: { click: exportAll } }, "下载 JSON"))));
+}
+
+async function exportAll() {
+  const res = await fetch("/api/export", { headers: { authorization: "Bearer " + token } });
+  if (!res.ok) { say("导出失败 HTTP " + res.status); return; }
+  const blob = await res.blob();
+  const a = el("a", { href: URL.createObjectURL(blob), download: `mele-memory-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.append(a); a.click(); a.remove();
+}
+
+// ---------- 切标签 ----------
+let tab = "list";
+for (const b of document.querySelectorAll("nav button")) {
+  b.addEventListener("click", () => {
+    tab = b.dataset.tab;
+    for (const x of document.querySelectorAll("nav button")) x.classList.toggle("on", x === b);
+    for (const t of ["list", "graph", "people", "letters", "status"]) $("#tab-" + t).classList.toggle("hidden", t !== tab);
+    refresh();
+  });
+}
+
+function refresh() {
+  if (!token) { say("先填钥匙 · Enter your key — 钥匙在启动日志里，或者数据文件夹的 token 文件里 · it's in the startup log or the token file in the data folder"); return; }
+  const run = { list: () => loadList(true), graph: loadGraph, people: loadPeople, letters: loadLetters, status: loadStatus }[tab];
+  run().catch(() => {});
+}
+// 直接打开某一页：#graph / #people …；只画星球时就是星图
+{
+  const start = document.documentElement.classList.contains("globe") ? "graph" : location.hash.slice(1);
+  const b = document.querySelector(`nav button[data-tab="${start}"]`);
+  if (b) b.click(); else refresh();
+}
+</script>
+</body>
+</html>

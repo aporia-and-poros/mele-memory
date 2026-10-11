@@ -1,0 +1,461 @@
+{
+ "memories": [
+  {
+   "id": "m01",
+   "content": "小满的妈妈叫秀兰，生日是 3 月 14 日，喜欢君子兰。",
+   "importance": 8
+  },
+  {
+   "id": "m02",
+   "content": "小满对芒果过敏，吃了嘴唇会肿。",
+   "importance": 9
+  },
+  {
+   "id": "m03",
+   "content": "小满在墨尔本读护理，大三。",
+   "importance": 7
+  },
+  {
+   "id": "m04",
+   "content": "小满养了一只橘猫，叫年糕，今年四岁。",
+   "importance": 8
+  },
+  {
+   "id": "m05",
+   "content": "小满的好朋友阿杰在悉尼做建筑师。",
+   "importance": 6
+  },
+  {
+   "id": "m06",
+   "content": "Mia is training for a half marathon in October.",
+   "importance": 7
+  },
+  {
+   "id": "m07",
+   "content": "小满每周二和周四晚上去游泳。",
+   "importance": 5
+  },
+  {
+   "id": "m08",
+   "content": "小满最近在控糖，早餐不吃甜的。",
+   "importance": 6
+  },
+  {
+   "id": "m09",
+   "content": "Mia's favourite band is Phoenix; she saw them live in 2024.",
+   "importance": 5
+  },
+  {
+   "id": "m10",
+   "content": "小满膝盖去年扭伤过，跑步超过 10 公里会疼。",
+   "importance": 7
+  },
+  {
+   "id": "m11",
+   "content": "小满的爸爸在杭州开茶叶店。",
+   "importance": 6
+  },
+  {
+   "id": "m12",
+   "content": "小满说她最怕打针。",
+   "importance": 5
+  },
+  {
+   "id": "m13",
+   "content": "Mia wants to learn to surf this summer at Torquay.",
+   "importance": 5
+  },
+  {
+   "id": "m14",
+   "content": "小满和室友小雨因为洗碗的事吵过一次，后来和好了。",
+   "importance": 4
+  },
+  {
+   "id": "m15",
+   "content": "小满下个月要考 OSCE 临床考试，很紧张。",
+   "importance": 8
+  },
+  {
+   "id": "m16",
+   "content": "小满喜欢喝燕麦拿铁，半糖。",
+   "importance": 4
+  },
+  {
+   "id": "m17",
+   "content": "小满的奶奶住在苏州，去年冬天住过一次院。",
+   "importance": 7
+  },
+  {
+   "id": "m18",
+   "content": "Mia's rent is due every fortnight on Friday.",
+   "importance": 5
+  },
+  {
+   "id": "m19",
+   "content": "小满周末在一家面包店打工，周六早上六点上班。",
+   "importance": 6
+  },
+  {
+   "id": "m20",
+   "content": "小满说秋天是她最喜欢的季节。",
+   "importance": 4
+  },
+  {
+   "id": "m21",
+   "content": "小满在学日语，想明年去京都看红叶。",
+   "importance": 5
+  },
+  {
+   "id": "m22",
+   "content": "小满的手机屏幕上个月摔裂了，还没修。",
+   "importance": 4
+  },
+  {
+   "id": "m23",
+   "content": "Mia keeps a gratitude journal before bed.",
+   "importance": 4
+  },
+  {
+   "id": "m24",
+   "content": "小满不喜欢香菜。",
+   "importance": 4
+  },
+  {
+   "id": "m25",
+   "content": "小满的导师 Dr. Chen 对她的实习报告评价很好。",
+   "importance": 6
+  },
+  {
+   "id": "m26",
+   "content": "小满存钱想买一台富士 X100 相机。",
+   "importance": 6
+  },
+  {
+   "id": "m27",
+   "content": "小满说她压力大的时候会失眠，凌晨两三点还醒着。",
+   "importance": 7
+  },
+  {
+   "id": "m28",
+   "content": "小满的表妹朵朵今年高考。",
+   "importance": 5
+  },
+  {
+   "id": "m29",
+   "content": "Mia's driving test is booked for 12 November.",
+   "importance": 7
+  },
+  {
+   "id": "m30",
+   "content": "小满最近迷上了做酸面包。",
+   "importance": 4
+  },
+  {
+   "id": "m31",
+   "content": "小满说她小时候在外婆家的院子里种过向日葵。",
+   "importance": 4
+  },
+  {
+   "id": "m32",
+   "content": "小满每天目标喝两升水，但经常忘。",
+   "importance": 5
+  },
+  {
+   "id": "m33",
+   "content": "小满和阿杰约好圣诞节一起去塔斯马尼亚。",
+   "importance": 7
+  },
+  {
+   "id": "m34",
+   "content": "Mia hates being called sweetie by strangers.",
+   "importance": 4
+  },
+  {
+   "id": "m35",
+   "content": "年糕上周刚打了疫苗。",
+   "importance": 5
+  },
+  {
+   "id": "m36",
+   "content": "小满对青霉素过敏。",
+   "importance": 9
+  },
+  {
+   "id": "m37",
+   "content": "小满周日晚上会给妈妈打视频电话。",
+   "importance": 5
+  },
+  {
+   "id": "m38",
+   "content": "小满说她想以后去儿科工作。",
+   "importance": 6
+  },
+  {
+   "id": "m39",
+   "content": "Mia's laptop is a 2020 MacBook Air and the battery is dying.",
+   "importance": 4
+  },
+  {
+   "id": "m40",
+   "content": "小满最近在读《夜晚的潜水艇》。",
+   "importance": 4
+  },
+  {
+   "id": "m41",
+   "content": "小满叫 Lumi「露露」，说这样叫比较亲。",
+   "importance": 5
+  },
+  {
+   "id": "m42",
+   "content": "小满让 Lumi 每天晚上提醒她喝水。",
+   "importance": 5
+  },
+  {
+   "id": "m43",
+   "content": "Lumi 答应小满，OSCE 考完要陪她复盘。",
+   "importance": 6
+  }
+ ],
+ "queries": [
+  {
+   "q": "我妈生日快到了，送什么好",
+   "expect": [
+    "m01"
+   ]
+  },
+  {
+   "q": "今天早餐吃芒果冰沙可以吗",
+   "expect": [
+    "m02",
+    "m08"
+   ]
+  },
+  {
+   "q": "年糕今天一直打喷嚏",
+   "expect": [
+    "m04",
+    "m35"
+   ]
+  },
+  {
+   "q": "my knee hurts after the long run",
+   "expect": [
+    "m10",
+    "m06"
+   ]
+  },
+  {
+   "q": "下个月的考试好紧张",
+   "expect": [
+    "m15"
+   ]
+  },
+  {
+   "q": "周末又要早起上班好累",
+   "expect": [
+    "m19"
+   ]
+  },
+  {
+   "q": "Tasmania trip planning",
+   "expect": [
+    "m33"
+   ]
+  },
+  {
+   "q": "又失眠了，睡不着",
+   "expect": [
+    "m27"
+   ]
+  },
+  {
+   "q": "want to buy a new camera",
+   "expect": [
+    "m26"
+   ]
+  },
+  {
+   "q": "奶奶打电话来了",
+   "expect": [
+    "m17"
+   ]
+  },
+  {
+   "q": "医生说要打一针青霉素",
+   "expect": [
+    "m36",
+    "m12"
+   ]
+  },
+  {
+   "q": "surf lessons this weekend?",
+   "expect": [
+    "m13"
+   ]
+  },
+  {
+   "q": "哈哈哈好的",
+   "expect": []
+  },
+  {
+   "q": "今天天气还不错",
+   "expect": []
+  },
+  {
+   "q": "帮我算一下 23 乘以 17",
+   "expect": []
+  },
+  {
+   "q": "what's the capital of Canada",
+   "expect": []
+  }
+ ],
+ "names": {
+  "ai": "Lumi",
+  "nicknames": [
+   "露露"
+  ],
+  "user": "小满"
+ },
+ "name_queries": [
+  {
+   "q": "露露你在干嘛呀，小满好无聊",
+   "expect": []
+  },
+  {
+   "q": "Lumi 晚安啦，小满要睡觉了",
+   "expect": []
+  },
+  {
+   "q": "露露，我妈生日快到了送什么好",
+   "expect": [
+    "m01"
+   ]
+  },
+  {
+   "q": "Lumi 我膝盖又开始疼了",
+   "expect": [
+    "m10"
+   ]
+  },
+  {
+   "q": "小满今天偷吃了芒果蛋糕",
+   "expect": [
+    "m02"
+   ]
+  },
+  {
+   "q": "露露你说我要不要换个手机",
+   "expect": [
+    "m22"
+   ]
+  }
+ ],
+ "context_queries": [
+  {
+   "recent": [
+    "小满：年糕今天去打针了",
+    "Lumi：打完针要多观察它的精神哦"
+   ],
+   "q": "它回来就一直蔫蔫的",
+   "expect": [
+    "m04",
+    "m35"
+   ]
+  },
+  {
+   "recent": [
+    "小满：阿杰说圣诞节他有空",
+    "Lumi：那你们之前说的计划可以定下来了"
+   ],
+   "q": "对，那边冷不冷啊",
+   "expect": [
+    "m33"
+   ]
+  },
+  {
+   "recent": [],
+   "q": "上次我说想去哪里看红叶来着",
+   "expect": [
+    "m21"
+   ]
+  },
+  {
+   "recent": [],
+   "q": "我之前跟你说过我对什么过敏来着",
+   "expect": [
+    "m02",
+    "m36"
+   ]
+  },
+  {
+   "recent": [
+    "小满：今天实习报告又被夸了",
+    "Lumi：太好了！是谁夸的？"
+   ],
+   "q": "还是她，说我写得很清楚",
+   "expect": [
+    "m25"
+   ]
+  },
+  {
+   "recent": [
+    "小满：我表妹今年高考",
+    "Lumi：朵朵紧张吗？"
+   ],
+   "q": "她说还好，就是睡不着",
+   "expect": [
+    "m28"
+   ]
+  }
+ ],
+ "dedup_memories": [
+  {
+   "id": "d01",
+   "content": "小满的猫年糕是橘色的，已经四岁了。",
+   "importance": 6,
+   "dup_of": "m04"
+  },
+  {
+   "id": "d02",
+   "content": "小满一到压力大就睡不着，半夜两三点还醒着。",
+   "importance": 6,
+   "dup_of": "m27"
+  },
+  {
+   "id": "d03",
+   "content": "小满最怕的就是打针。",
+   "importance": 5,
+   "dup_of": "m12"
+  }
+ ],
+ "dedup_queries": [
+  {
+   "q": "年糕今天特别黏人，一直跟着我",
+   "shown": [
+    "m04"
+   ],
+   "forbid": [
+    "d01"
+   ]
+  },
+  {
+   "q": "最近又开始睡不好了",
+   "shown": [
+    "m27"
+   ],
+   "forbid": [
+    "d02"
+   ]
+  },
+  {
+   "q": "明天要去打流感疫苗，有点慌",
+   "shown": [
+    "m12"
+   ],
+   "forbid": [
+    "d03"
+   ]
+  }
+ ]
+}

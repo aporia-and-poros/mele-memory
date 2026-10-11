@@ -1,0 +1,53 @@
+# 一键启动：docker compose up -d，钥匙看 docker compose logs memory（第一次启动自己生成，存在 ./data/memory/token）
+# 想改设置：cp .env.example .env 再填。数据在 ./data/pg，向量模型缓存在 ./data/models；删容器不丢。
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: mele
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mele}
+      POSTGRES_DB: mele_memory
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mele -d mele_memory"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  memory:
+    build:
+      context: .
+      args:
+        WITH_EMBED: ${WITH_EMBED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MEMORY_DSN: postgresql://mele:${POSTGRES_PASSWORD:-mele}@db:5432/mele_memory
+      MELE_MEMORY_TOKEN: ${MELE_MEMORY_TOKEN:-}   # 不填：第一次启动自己生成一把，存在 ./data/memory/token
+      MELE_MEMORY_DATA: /data
+      MELE_MEMORY_USER: ${MELE_MEMORY_USER:-}
+      MELE_MEMORY_NAMES: ${MELE_MEMORY_NAMES:-}
+      MELE_MEMORY_FAKE_EMBED: ${MELE_MEMORY_FAKE_EMBED:-}
+      MELE_MEMORY_TZ: ${MELE_MEMORY_TZ:-UTC}
+      MELE_MEMORY_USER_NAME: ${MELE_MEMORY_USER_NAME:-}
+      MELE_MEMORY_BACKUP_REPO: ${MELE_MEMORY_BACKUP_REPO:-}
+      MELE_MEMORY_BACKUP_TOKEN: ${MELE_MEMORY_BACKUP_TOKEN:-}
+      MELE_MEMORY_BACKUP_HOUR: ${MELE_MEMORY_BACKUP_HOUR:-4}
+      MELE_MEMORY_LINK_SECRET: ${MELE_MEMORY_LINK_SECRET:-}
+      HF_HOME: /models
+    volumes:
+      - ./data/models:/models
+      - ./data/memory:/data
+    ports:
+      # 默认只让本机连；要给别的机器连，在 .env 里设 MELE_MEMORY_BIND=0.0.0.0（公网请再套 HTTPS）
+      - "${MELE_MEMORY_BIND:-127.0.0.1}:8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15m   # 第一次要下约 2.2GB 的模型
+    restart: unless-stopped

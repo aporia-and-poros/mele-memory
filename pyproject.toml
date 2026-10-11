@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mele-memory"
+version = "0.1.0"
+description = "Long-term memory for AI companions: store, decay, recall. Postgres + pgvector + bge-m3."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+  "asyncpg>=0.30",
+  "pgvector>=0.3.6",
+  "numpy>=2.0",
+  "jieba>=0.42.1",
+]
+
+[project.optional-dependencies]
+embed = ["sentence-transformers>=3.3"]
+mcp = ["mcp>=2.3,<3"]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "httpx>=0.27", "mcp>=2.3,<3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["memory", "tide", "mcp_server"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
