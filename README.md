@@ -61,6 +61,7 @@ curl http://localhost:8765/health           # {"ok":true}
 
 - 起两个容器：`db`（Postgres 17 + pgvector）和 `memory`（MCP 服务 + 网页）。
 - MCP 地址 `http://localhost:8765/mcp`，请求头带 `Authorization: Bearer <你的 token>`；网页在 `http://localhost:8765/`。
+- 只会旧式 SSE 接法的软件（填的地址要以 `/sse` 结尾那种）：填 `http://localhost:8765/sse`，钥匙一样。链接模式下是 `/sse/<MELE_MEMORY_LINK_SECRET>`。
 - 第一次启动会下载 bge-m3 向量模型（约 2.2GB），存在 `./data/models`，之后不再下。数据库在 `./data/pg`。删掉容器、重建镜像，数据都还在。
 - 默认只让本机连。要给别的设备连，在 `.env` 里设 `MELE_MEMORY_BIND=0.0.0.0`，并在前面套一层 HTTPS（Caddy、Cloudflare Tunnel 之类）。
 - 想每天自动备份：见[设置一览](#设置一览)里的 GitHub 备份。
@@ -220,7 +221,7 @@ Long-term memory for AI companions, extracted from Mele. It remembers what you t
 
 **Pick a way to use it**
 
-- **Docker** (web page, memory globe, daily backups, reachable from other devices): `docker compose up -d`; on first start it generates a key, prints it in `docker compose logs memory` and saves it to `./data/memory/token` (or set your own `MELE_MEMORY_TOKEN` in `.env`). MCP at `http://localhost:8765/mcp` with `Authorization: Bearer <token>`; the web page at `http://localhost:8765/`. The bge-m3 model (~2.2GB) downloads on first start into `./data/models`; the database lives in `./data/pg`. Bound to localhost by default; set `MELE_MEMORY_BIND=0.0.0.0` to expose it, with HTTPS in front.
+- **Docker** (web page, memory globe, daily backups, reachable from other devices): `docker compose up -d`; on first start it generates a key, prints it in `docker compose logs memory` and saves it to `./data/memory/token` (or set your own `MELE_MEMORY_TOKEN` in `.env`). MCP at `http://localhost:8765/mcp` with `Authorization: Bearer <token>` (clients that only speak the older SSE transport: `http://localhost:8765/sse`, same key); the web page at `http://localhost:8765/`. The bge-m3 model (~2.2GB) downloads on first start into `./data/models`; the database lives in `./data/pg`. Bound to localhost by default; set `MELE_MEMORY_BIND=0.0.0.0` to expose it, with HTTPS in front.
 - **Claude Desktop / Cursor on your own machine**: Python 3.12, Postgres + pgvector; `pip install -e ".[embed,mcp]"`, `createdb mele_memory`, then point the client at `python -m mcp_server` (see the `claude_desktop_config.json` example above).
 - **claude.ai web and mobile** (URL only, no headers): set `MELE_MEMORY_LINK_SECRET` (32+ letters/digits) and use `https://<host>/mcp/<secret>`. The URL itself is the key: use HTTPS, keep it private, rotate it if it leaks. It opens MCP only, not the web API, and is redacted from the server's access log. Simpler and less secure than OAuth; leave it unset and the door doesn't exist.
 - **As a library**: `import memory as M` — see the example above.

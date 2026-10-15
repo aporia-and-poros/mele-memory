@@ -290,3 +290,38 @@ def test_access_log_redacts_link():
     rec = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s"', ("1.2.3.4", "POST", f"/mcp/{LINK}"), None)
     RedactSecret(LINK).filter(rec)
     assert LINK not in rec.getMessage() and "/mcp/***" in rec.getMessage()
+
+
+async def test_old_style_sse(pool, user_a):
+    """旧式 SSE（10-15）：/sse 开流要钥匙（链接模式 /sse/<secret> 不用）；开了流就能照常调工具"""
+    import asyncio
+    import socket
+
+    import uvicorn
+    from mcp.client.session import ClientSession
+    from mcp.client.sse import sse_client
+
+    svc = Service(pool=pool, embedder=E, user_id=user_a, names=("Lumi", "小满"))
+    app = build_http_app(build_server(svc), svc, Settings(token=TOKEN, link_secret=LINK))
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    srv = uvicorn.Server(uvicorn.Config(app, log_level="warning"))
+    task = asyncio.create_task(srv.serve(sockets=[sock]))
+    try:
+        while not srv.started:
+            await asyncio.sleep(0.05)
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient() as c:
+            assert (await c.get(f"{base}/sse")).status_code == 401
+            assert (await c.post(f"{base}/messages/?session_id=" + "0" * 32, json={})).status_code in (400, 404)
+        for url, headers in ((f"{base}/sse", {"Authorization": f"Bearer {TOKEN}"}), (f"{base}/sse/{LINK}", None)):
+            async with sse_client(url, headers=headers) as (r, w), ClientSession(r, w) as s:
+                await s.initialize()
+                names = {t.name for t in (await s.list_tools()).tools}
+                assert {"remember", "recall", "wake"} <= names
+                got = await s.call_tool("remember", {"content": "小满喜欢秋天"})
+                assert not got.is_error
+    finally:
+        srv.should_exit = True
+        await task

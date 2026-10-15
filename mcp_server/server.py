@@ -363,22 +363,27 @@ class BearerAuth:
     """除了 open_paths，其余请求都要 Authorization: Bearer <token>。比较用定长时间，不泄露对了几位。
 
     链接模式（link_secret）：给 claude.ai 网页版 / 手机这类只能填网址、不能加请求头的客户端。
-    /mcp/<link_secret> 不用带头，当成 /mcp 放进去；它只开 MCP，网页接口照样要 token。"""
+    /mcp/<link_secret>（旧式 SSE 是 /sse/<link_secret>）不用带头，当成 /mcp、/sse 放进去；它只开 MCP，网页接口照样要 token。
 
-    def __init__(self, app, token: str, open_paths=("/health",), link_secret: str = ""):
+    旧式 SSE：GET /sse 开流要钥匙；之后往 /messages/?session_id=… POST 不再查头——会话号是开流时随机发的，
+    只有开了流的人知道，不认识的会话号 SDK 自己回 404。"""
+
+    def __init__(self, app, token: str, open_paths=("/health",), link_secret: str = "", open_prefixes=("/messages/",)):
         self.app = app
         self.token = token.encode()
         self.open_paths = set(open_paths)
         self.link = link_secret.encode()
+        self.open_prefixes = tuple(open_prefixes)
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["path"] in self.open_paths:
+        if scope["type"] != "http" or scope["path"] in self.open_paths or scope["path"].startswith(self.open_prefixes):
             return await self.app(scope, receive, send)
-        if self.link and scope["path"].startswith("/mcp/"):
-            given = scope["path"][5:].rstrip("/").encode()
-            if hmac.compare_digest(given, self.link):
-                scope = {**scope, "path": "/mcp", "raw_path": b"/mcp"}
-                return await self.app(scope, receive, send)
+        for door in ("/mcp", "/sse"):
+            if self.link and scope["path"].startswith(door + "/"):
+                given = scope["path"][len(door) + 1:].rstrip("/").encode()
+                if hmac.compare_digest(given, self.link):
+                    scope = {**scope, "path": door, "raw_path": door.encode()}
+                    return await self.app(scope, receive, send)
         given = b""
         for k, v in scope.get("headers", []):
             if k == b"authorization" and v[:7].lower() == b"bearer ":
@@ -446,13 +451,14 @@ class RedactSecret(logging.Filter):
 
 
 def build_http_app(server: MCPServer, svc: Service, settings: Settings, host: str = "127.0.0.1"):
-    """/mcp（MCP）、/api/*（网页接口）要钥匙；/health 和网页本身 / 不要。"""
+    """/mcp（MCP）、/sse（旧式 SSE 的 MCP，给只会这种接法的软件）、/api/*（网页接口）要钥匙；/health 和网页本身 / 不要。"""
     from starlette.responses import JSONResponse
     from starlette.routing import Route
 
     from . import web
 
     app = server.streamable_http_app(host=host)
+    app.router.routes.extend(server.sse_app(host=host).routes)     # /sse + /messages/（10-15）
 
     async def health(_request):
         return JSONResponse({"ok": True})
@@ -495,7 +501,8 @@ async def serve(settings: Settings, *, http: bool, host: str, port: int) -> None
             log.info("loading the embedding model…")
             await asyncio.to_thread(embedder.embed, ["warm up"])   # 先加载好，免得第一个请求等几分钟
             app = build_http_app(server, svc, settings, host=host)
-            log.info("serving MCP on http://%s:%d/mcp, memory page on http://%s:%d/", host, port, host, port)
+            log.info("serving MCP on http://%s:%d/mcp (old-style SSE clients: /sse), memory page on http://%s:%d/",
+                     host, port, host, port)
             if settings.link_secret:
                 logging.getLogger("uvicorn.access").addFilter(RedactSecret(settings.link_secret))
                 log.info("link mode on: /mcp/<MELE_MEMORY_LINK_SECRET> works without a header (use HTTPS)")
